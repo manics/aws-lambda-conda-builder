@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conda-custom-envs"
+authors = [
+    {name = "hic-infra"}
+]
+description = "Build custom conda environments, either on the command line or in AWS Lambda."
+readme = "README.md"
+license = {file = "LICENSE.txt"}
+version = "0.0.0"
+
+[project.scripts]
+conda-env-builder = "aws_conda_env_builder:main"

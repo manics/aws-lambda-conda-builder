@@ -6,11 +6,14 @@ RUN mamba install -y -q \
     boto3 \
     conda-pack \
     pyyaml
-COPY lambda_function.py /opt/conda/lib/python3.10/site-packages/
+COPY pyproject.toml aws_conda_env_builder.py LICENSE.txt README.md /src/custom-conda-envs/
+RUN pip install /src/custom-conda-envs/
+
+COPY entrypoint.sh /user/local/bin/
 
 WORKDIR /build
 
 # Set runtime interface client as default command for the container runtime
-ENTRYPOINT ["/opt/conda/bin/python", "-m", "awslambdaric"]
+ENTRYPOINT ["/user/local/bin/entrypoint.sh"]
 # Pass the name of the function handler as an argument to the runtime
-CMD ["lambda_function.handler"]
+CMD ["aws_conda_env_builder.handler"]
