@@ -10,39 +10,50 @@ import sys
 import yaml
 
 
-# https://boto3.amazonaws.com/v1/documentation/api/1.16.53/guide/s3-uploading-files.html
-def upload_file(filepath, bucket, key):
-    """Upload a file to an S3 bucket
+def split_s3_url(s3url):
+    bucket, key = s3url.lstrip("s3://").split("/", 1)
+    return bucket, key
 
-    :param filepath: File to upload
-    :param bucket: Bucket to upload to
-    :param key: S3 key
-    """
 
-    s3_client = boto3.client("s3")
-    response = s3_client.upload_file(filepath, bucket, key)
+def upload_s3_file(filepath, bucket, key):
+    s3 = boto3.client("s3")
+    response = s3.upload_file(filepath, bucket, key)
     print(response)
+
+
+def environment_yml_from_s3(s3url):
+    s3 = boto3.client("s3")
+    bucket, key = split_s3_url(s3url)
+    obj = s3.get_object(Bucket=bucket, Key=key)
+    y = yaml.safe_load(obj["Body"].read())
+    return y
 
 
 def handler(event, context):
     print(f"{event=}")
-    if "environment_yml" in event:
-        environment_yml = event["environment_yml"]
-        environment = yaml.safe_load(environment_yml)
+
+    if "environment_s3" in event:
+        environment = environment_yml_from_s3(event["environment_s3"])
+    elif "environment_string" in event:
+        environment = yaml.safe_load(event["environment_string"])
     elif "environment" in event:
         environment = event["environment"]
     else:
         raise ValueError("No environment provided")
 
-    try:
-        s3bucket = event["s3bucket"]
-    except KeyError:
-        raise ValueError("No S3 bucket provided") from None
+    upload_s3 = False
+    if event.get("s3bucket") or event.get("s3prefix"):
+        try:
+            s3bucket = event["s3bucket"]
+        except KeyError:
+            raise ValueError("No S3 bucket provided") from None
 
-    try:
-        s3prefix = event["s3prefix"]
-    except KeyError:
-        raise ValueError("No S3 prefix provided") from None
+        try:
+            s3prefix = event["s3prefix"]
+        except KeyError:
+            raise ValueError("No S3 prefix provided") from None
+
+        upload_s3 = True
 
     if "name" not in environment:
         print("No name provided in environment, using 'custom-env'")
@@ -68,25 +79,31 @@ def handler(event, context):
     run(["conda", "pack", "-n", name, "-o", f"{name}.tar.gz"], check=True)
 
     source = f"{name}.tar.gz"
-    destination = f"s3://{s3bucket}/{s3prefix}/{source}"
-    print(f"Uploading {source} to {destination}")
-    upload_file(source, s3bucket, s3prefix)
-    return destination
+
+    if upload_s3:
+        destination = f"s3://{s3bucket}/{s3prefix}/{source}"
+        print(f"Uploading to {destination}")
+        upload_s3_file(source, s3bucket, s3prefix)
+        return destination
+    return source
 
 
 def main():
     parser = argparse.ArgumentParser(description="Create a conda environment")
-    parser.add_argument("environment", help="Conda environment file")
-    parser.add_argument("--s3bucket", help="S3 bucket")
-    parser.add_argument("--s3prefix", help="S3 prefix")
+    parser.add_argument("environment", help="Conda environment file, either a .yml file or an s3:// URL")
+    parser.add_argument("--s3bucket", help="Destination S3 bucket")
+    parser.add_argument("--s3prefix", help="Destination S3 prefix")
     args = parser.parse_args()
-    environment_yml = open(args.environment).read()
 
     event = {
-        "environment_yml": environment_yml,
         "s3bucket": args.s3bucket,
         "s3prefix": args.s3prefix,
     }
+    if args.environment.startswith("s3://"):
+        event["environment_s3"] = args.environment
+    else:
+        with open(args.environment) as f:
+            event["environment_string"] = f.read()
     r = handler(event, {})
 
 

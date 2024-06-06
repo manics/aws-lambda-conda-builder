@@ -1,5 +1,5 @@
 # https://docs.aws.amazon.com/lambda/latest/dg/python-image.html#python-image-clients
-FROM docker.io/condaforge/mambaforge:23.11.0-0
+FROM docker.io/condaforge/mambaforge:24.3.0-0
 
 RUN mamba install -y -q \
     awslambdaric \
