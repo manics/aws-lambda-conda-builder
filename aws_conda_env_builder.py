@@ -1,12 +1,10 @@
 # https://docs.aws.amazon.com/lambda/latest/dg/python-image.html#python-image-clients
 
 import argparse
-import boto3
-from botocore.exceptions import ClientError
-import os.path
 import re
-from subprocess import run
-import sys
+from subprocess import run  # nosec B404
+
+import boto3
 import yaml
 
 
@@ -75,8 +73,12 @@ def handler(event, context):
         f.write(yaml.dump(environment))
 
     name = environment["name"]
-    run(["mamba", "env", "create", "-n", name, "--file", "environment.yml"], check=True)
-    run(["conda", "pack", "-n", name, "-o", f"{name}.tar.gz"], check=True)
+    run(  # nosec B603, B607
+        ["mamba", "env", "create", "-n", name, "--file", "environment.yml"], check=True
+    )
+    run(  # nosec B603, B607
+        ["conda", "pack", "-n", name, "-o", f"{name}.tar.gz"], check=True
+    )
 
     source = f"{name}.tar.gz"
 
@@ -90,7 +92,9 @@ def handler(event, context):
 
 def main():
     parser = argparse.ArgumentParser(description="Create a conda environment")
-    parser.add_argument("environment", help="Conda environment file, either a .yml file or an s3:// URL")
+    parser.add_argument(
+        "environment", help="Conda environment file, either a .yml file or an s3:// URL"
+    )
     parser.add_argument("--s3bucket", help="Destination S3 bucket")
     parser.add_argument("--s3prefix", help="Destination S3 prefix")
     args = parser.parse_args()
@@ -104,7 +108,7 @@ def main():
     else:
         with open(args.environment) as f:
             event["environment_string"] = f.read()
-    r = handler(event, {})
+    _ = handler(event, {})
 
 
 if __name__ == "__main__":
